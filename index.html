@@ -330,7 +330,22 @@ const Config = {
     "청결 상태","상품 진열","조명 상태","간판·외관","냉장·냉동 설비"
   ]
 };
-
+async function compressImage(base64) {
+  if (!base64) return "";
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const max = 800;
+      const ratio = Math.min(max / img.width, max / img.height, 1);
+      canvas.width  = img.width  * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.6));
+    };
+    img.src = base64;
+  });
+}
 let photoData = { 1: null, 2: null, 3: null };
 let monitorResult = {};
 let currentStep = 1;
@@ -472,12 +487,19 @@ async function submitAll() {
     submittedAt: new Date().toLocaleString("ko-KR")
   };
   try {
-    setLoadingText("Google Drive에 사진 업로드 중…");
-    const res = await fetch(Config.SCRIPT_URL, { method: "POST",
-body: JSON.stringify(payload),
-redirect: "follow",
-headers: { "Content-Type": "text/plain" } });
-    const result = await res.json();
+    setLoadingText("사진 압축 중…");
+    payload.photo1 = await compressImage(payload.photo1);
+    payload.photo2 = await compressImage(payload.photo2);
+    payload.photo3 = await compressImage(payload.photo3);
+    setLoadingText("Google Drive에 업로드 중…");
+    const res = await fetch(Config.SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      redirect: "follow"
+    });
+    const text = await res.text();
+    const result = JSON.parse(text);
     hideLoading();
     if (result.status === "ok") showResult(payload, result);
     else showToast("❌ 오류: " + (result.message || "알 수 없는 오류"));
